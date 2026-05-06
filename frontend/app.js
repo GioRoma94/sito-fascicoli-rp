@@ -6,6 +6,7 @@ const loginScreen = document.querySelector("#loginScreen");
 const appShell = document.querySelector("#appShell");
 const loginForm = document.querySelector("#loginForm");
 const loginError = document.querySelector("#loginError");
+const bootLog = document.querySelector("#bootLog");
 const usernameInput = document.querySelector("#usernameInput");
 const passwordInput = document.querySelector("#passwordInput");
 const caseList = document.querySelector("#caseList");
@@ -24,6 +25,18 @@ const leadInput = document.querySelector("#leadInput");
 const summaryInput = document.querySelector("#summaryInput");
 const newChapterBtn = document.querySelector("#newChapterBtn");
 const chapters = document.querySelector("#chapters");
+const bootLines = [
+  "Import-Module FederalCaseVault",
+  "Mount-IntelDrive -Name FBI_FIELD_ARCHIVE",
+  "Loading file: warrants.dbx",
+  "Loading file: suspects.index",
+  "Loading file: classified_audio_manifest.sec",
+  "Loading file: surveillance_nodes.map",
+  "Handshake CIA_LIAISON_CHANNEL ........ OK",
+  "Decrypting bureau case folders ....... OK",
+  "Session gate ready. Insert credentials."
+];
+let bootTimers = [];
 
 async function requestJson(url, options = {}) {
   const response = await fetch(url, {
@@ -95,12 +108,34 @@ async function logout() {
 function showLogin() {
   loginScreen.hidden = false;
   appShell.hidden = true;
+  runBootLog();
   usernameInput.focus();
 }
 
 function showApp() {
   loginScreen.hidden = true;
   appShell.hidden = false;
+  clearBootLogTimers();
+}
+
+function runBootLog() {
+  clearBootLogTimers();
+  bootLog.innerHTML = "";
+
+  bootLines.forEach((line, index) => {
+    const timer = setTimeout(() => {
+      const row = document.createElement("p");
+      row.className = "boot-line";
+      row.textContent = line;
+      bootLog.append(row);
+    }, index * 170);
+    bootTimers.push(timer);
+  });
+}
+
+function clearBootLogTimers() {
+  bootTimers.forEach((timer) => clearTimeout(timer));
+  bootTimers = [];
 }
 
 async function loadCases() {

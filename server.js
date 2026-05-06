@@ -5,6 +5,7 @@ const { Pool } = require("pg");
 
 const app = express();
 const port = process.env.PORT || 3000;
+const frontendPath = path.join(__dirname, "frontend");
 const databaseUrl = process.env.DATABASE_URL;
 const authUser = process.env.AUTH_USER || "admin";
 const authPassword = process.env.AUTH_PASSWORD || "admin";
@@ -18,7 +19,7 @@ const pool = databaseUrl
   : null;
 
 app.use(express.json({ limit: "1mb" }));
-app.use(express.static(path.join(__dirname, "public")));
+app.use(express.static(frontendPath));
 
 function parseCookies(header = "") {
   return Object.fromEntries(
@@ -398,7 +399,7 @@ app.delete("/api/chapters/:id", async (req, res) => {
 });
 
 app.get("*", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
+  res.sendFile(path.join(frontendPath, "index.html"));
 });
 
 initDatabase()

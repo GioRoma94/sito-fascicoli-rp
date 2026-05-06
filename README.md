@@ -2,6 +2,13 @@
 
 Base Node/Express pronta per Render. Il sito permette di creare fascicoli, modificarne i dati principali e aggiungere capitoli con narrativa e persone coinvolte.
 
+## Struttura progetto
+
+```text
+frontend/   schermate, stile, JavaScript browser e immagini
+server.js   backend Express, login, API e PostgreSQL
+```
+
 ## Avvio locale
 
 ```bash

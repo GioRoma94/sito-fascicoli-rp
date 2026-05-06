@@ -12,34 +12,54 @@
   <body>
     <section class="login-screen" id="loginScreen">
       <div class="login-panel">
-        <div class="login-seal">CID</div>
-        <p class="eyebrow">Federal Investigative Access</p>
-        <h1>Case Archive</h1>
-        <p class="login-copy">Accesso riservato agli operatori autorizzati.</p>
+        <div class="terminal-topbar">
+          <span></span>
+          <span></span>
+          <span></span>
+          <p>PS C:\FEDERAL_INTEL\ACCESS_GATE</p>
+        </div>
 
-        <form class="login-form" id="loginForm">
-          <div class="field">
-            <label for="usernameInput">User ID</label>
-            <input id="usernameInput" name="username" type="text" autocomplete="username" required />
+        <div class="terminal-window">
+          <div class="terminal-brand">
+            <div class="login-seal">DB</div>
+            <div>
+              <p class="terminal-kicker">Detective&Bureau // federal node</p>
+              <h1>Secure Case Terminal</h1>
+            </div>
           </div>
-          <div class="field">
-            <label for="passwordInput">Password</label>
-            <input id="passwordInput" name="password" type="password" autocomplete="current-password" required />
-          </div>
-          <p class="login-error" id="loginError" hidden>Credenziali non valide.</p>
-          <button class="primary-action" type="submit">Accedi al database</button>
-        </form>
+
+          <div class="boot-log" id="bootLog" aria-label="Log caricamento sistema"></div>
+
+          <form class="login-form terminal-form" id="loginForm">
+            <label class="terminal-field" for="usernameInput">
+              <span>PS&gt; set-agent -user</span>
+              <input id="usernameInput" name="username" type="text" autocomplete="username" required />
+            </label>
+            <label class="terminal-field" for="passwordInput">
+              <span>PS&gt; unlock-vault -password</span>
+              <input id="passwordInput" name="password" type="password" autocomplete="current-password" required />
+            </label>
+            <p class="login-error" id="loginError" hidden>ACCESS DENIED: credenziali non valide.</p>
+            <button class="primary-action terminal-submit" type="submit">EXECUTE LOGIN</button>
+          </form>
+        </div>
       </div>
     </section>
 
     <div class="app-shell" id="appShell" hidden>
       <aside class="sidebar">
         <div class="seal">
-          <div class="seal-ring">INV</div>
+          <div class="seal-ring">DB</div>
           <div>
-            <p class="eyebrow">Criminal Investigation Division</p>
-            <h1>Federal Case Archive</h1>
+            <p class="eyebrow">Detective&Bureau</p>
+            <h1>Federal Intelligence Archive</h1>
           </div>
+        </div>
+
+        <div class="intel-card">
+          <span>CLASSIFIED</span>
+          <strong>Joint investigative desk</strong>
+          <p>FBI field records // CIA-style intelligence notes</p>
         </div>
 
         <button class="primary-action" id="newCaseBtn" type="button">+ Nuovo fascicolo</button>
@@ -57,7 +77,7 @@
       <main class="workspace">
         <header class="topbar">
           <div>
-            <p class="eyebrow">Criminal Investigation Division</p>
+            <p class="eyebrow">Detective&Bureau</p>
             <h2 id="caseTitle">Seleziona un fascicolo</h2>
           </div>
           <div class="status-strip">
@@ -65,6 +85,12 @@
             <span id="caseNumber">NO CASE</span>
           </div>
         </header>
+
+        <div class="intel-strip" aria-hidden="true">
+          <span>FIELD OFFICE: LS</span>
+          <span>CLEARANCE: LEVEL 4</span>
+          <span>INTEL CHANNEL: ACTIVE</span>
+        </div>
 
         <section class="case-editor" id="caseEditor" hidden>
           <div class="case-form">
@@ -107,7 +133,7 @@
         </section>
 
         <section class="empty-state" id="emptyState">
-          <p class="badge">SECURE DATABASE</p>
+          <p class="badge">SECURE INTEL DATABASE</p>
           <h2>Archivio investigativo pronto</h2>
           <p>Crea un fascicolo per iniziare a catalogare narrative, sospetti, testimoni e persone coinvolte nelle indagini RP.</p>
         </section>
