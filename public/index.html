@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Federal Case Archive</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Roboto+Mono:wght@500;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="seal">
+          <div class="seal-ring">INV</div>
+          <div>
+            <p class="eyebrow">United States Police Department</p>
+            <h1>Case Archive</h1>
+          </div>
+        </div>
+
+        <button class="primary-action" id="newCaseBtn" type="button">+ Nuovo fascicolo</button>
+
+        <div class="case-search">
+          <label for="caseSearch">Ricerca fascicoli</label>
+          <input id="caseSearch" type="search" placeholder="Numero, titolo, sospetto..." />
+        </div>
+
+        <nav class="case-list" id="caseList" aria-label="Lista fascicoli"></nav>
+      </aside>
+
+      <main class="workspace">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Criminal Investigation Division</p>
+            <h2 id="caseTitle">Seleziona un fascicolo</h2>
+          </div>
+          <div class="status-strip">
+            <span id="caseStatus">ARCHIVE</span>
+            <span id="caseNumber">NO CASE</span>
+          </div>
+        </header>
+
+        <section class="case-editor" id="caseEditor" hidden>
+          <div class="case-form">
+            <div class="field">
+              <label for="titleInput">Titolo fascicolo</label>
+              <input id="titleInput" type="text" />
+            </div>
+            <div class="field">
+              <label for="numberInput">Numero caso</label>
+              <input id="numberInput" type="text" />
+            </div>
+            <div class="field">
+              <label for="statusInput">Stato</label>
+              <select id="statusInput">
+                <option>APERTO</option>
+                <option>SOTTO OSSERVAZIONE</option>
+                <option>MANDATO RICHIESTO</option>
+                <option>CHIUSO</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="leadInput">Agente responsabile</label>
+              <input id="leadInput" type="text" />
+            </div>
+            <div class="field wide">
+              <label for="summaryInput">Sintesi investigativa</label>
+              <textarea id="summaryInput" rows="4"></textarea>
+            </div>
+          </div>
+
+          <div class="chapter-header">
+            <div>
+              <p class="eyebrow">Evidence narrative</p>
+              <h3>Capitoli del fascicolo</h3>
+            </div>
+            <button class="secondary-action" id="newChapterBtn" type="button">+ Nuovo capitolo</button>
+          </div>
+
+          <div class="chapters" id="chapters"></div>
+        </section>
+
+        <section class="empty-state" id="emptyState">
+          <p class="badge">SECURE DATABASE</p>
+          <h2>Archivio investigativo pronto</h2>
+          <p>Crea un fascicolo per iniziare a catalogare narrative, sospetti, testimoni e persone coinvolte nelle indagini RP.</p>
+        </section>
+      </main>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
