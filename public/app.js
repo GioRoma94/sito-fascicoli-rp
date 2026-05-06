@@ -1,26 +1,6 @@
-const storageKey = "rp-police-case-archive";
-
-const defaultCases = [
-  {
-    id: crypto.randomUUID(),
-    title: "Operazione Red Harbor",
-    number: "CID-2049-17",
-    status: "APERTO",
-    lead: "Det. M. Reynolds",
-    summary: "Indagine su una rete di ricettazione legata al porto e a veicoli rubati.",
-    chapters: [
-      {
-        id: crypto.randomUUID(),
-        title: "Primo rapporto sul deposito",
-        narrative: "Alle 22:40 una pattuglia ha segnalato movimenti sospetti presso un magazzino dismesso. Sono stati rilevati tre veicoli senza targhe e comunicazioni radio non autorizzate.",
-        people: "Jack Moretti - sospetto principale\nElena Vargas - testimone\nUnita 12-Adam - primo intervento"
-      }
-    ]
-  }
-];
-
-let cases = loadCases();
-let selectedCaseId = cases[0]?.id || null;
+let cases = [];
+let selectedCaseId = null;
+const saveTimers = new Map();
 
 const caseList = document.querySelector("#caseList");
 const caseSearch = document.querySelector("#caseSearch");
@@ -38,61 +18,113 @@ const summaryInput = document.querySelector("#summaryInput");
 const newChapterBtn = document.querySelector("#newChapterBtn");
 const chapters = document.querySelector("#chapters");
 
-function loadCases() {
-  const storedCases = localStorage.getItem(storageKey);
-  if (!storedCases) {
-    return defaultCases;
+async function requestJson(url, options = {}) {
+  const response = await fetch(url, {
+    headers: { "Content-Type": "application/json" },
+    ...options
+  });
+
+  if (!response.ok) {
+    throw new Error(`Request failed with status ${response.status}`);
   }
 
-  try {
-    return JSON.parse(storedCases);
-  } catch {
-    return defaultCases;
+  if (response.status === 204) {
+    return null;
   }
+
+  return response.json();
 }
 
-function saveCases() {
-  localStorage.setItem(storageKey, JSON.stringify(cases));
+async function loadCases() {
+  cases = await requestJson("/api/cases");
+  selectedCaseId = cases[0]?.id || null;
+  render();
 }
 
 function getSelectedCase() {
   return cases.find((caseFile) => caseFile.id === selectedCaseId);
 }
 
-function createCase() {
+async function createCase() {
   const caseFile = {
     id: crypto.randomUUID(),
     title: "Nuovo fascicolo",
     number: `CID-${new Date().getFullYear()}-${String(cases.length + 1).padStart(3, "0")}`,
     status: "APERTO",
     lead: "",
-    summary: "",
-    chapters: []
+    summary: ""
   };
 
-  cases.unshift(caseFile);
-  selectedCaseId = caseFile.id;
-  saveCases();
-  render();
-  titleInput.focus();
+  try {
+    const createdCase = await requestJson("/api/cases", {
+      method: "POST",
+      body: JSON.stringify(caseFile)
+    });
+
+    cases.unshift(createdCase);
+    selectedCaseId = createdCase.id;
+    render();
+    titleInput.focus();
+  } catch (error) {
+    showError("Non riesco a creare il fascicolo nel database.");
+  }
 }
 
-function createChapter() {
+async function createChapter() {
   const caseFile = getSelectedCase();
   if (!caseFile) {
     return;
   }
 
-  caseFile.chapters.push({
+  const chapter = {
     id: crypto.randomUUID(),
     title: `Capitolo ${caseFile.chapters.length + 1}`,
     narrative: "",
     people: ""
-  });
+  };
 
-  saveCases();
-  render();
-  document.querySelector(`[data-chapter-title="${caseFile.chapters.at(-1).id}"]`)?.focus();
+  try {
+    const createdChapter = await requestJson(`/api/cases/${encodeURIComponent(caseFile.id)}/chapters`, {
+      method: "POST",
+      body: JSON.stringify(chapter)
+    });
+
+    caseFile.chapters.push(createdChapter);
+    render();
+    document.querySelector(`[data-chapter-title="${createdChapter.id}"]`)?.focus();
+  } catch (error) {
+    showError("Non riesco a creare il capitolo nel database.");
+  }
+}
+
+function scheduleCaseSave(caseFile) {
+  const timerKey = `case:${caseFile.id}`;
+  clearTimeout(saveTimers.get(timerKey));
+  saveTimers.set(timerKey, setTimeout(async () => {
+    try {
+      await requestJson(`/api/cases/${encodeURIComponent(caseFile.id)}`, {
+        method: "PATCH",
+        body: JSON.stringify(caseFile)
+      });
+    } catch (error) {
+      showError("Non riesco a salvare il fascicolo nel database.");
+    }
+  }, 300));
+}
+
+function scheduleChapterSave(chapter) {
+  const timerKey = `chapter:${chapter.id}`;
+  clearTimeout(saveTimers.get(timerKey));
+  saveTimers.set(timerKey, setTimeout(async () => {
+    try {
+      await requestJson(`/api/chapters/${encodeURIComponent(chapter.id)}`, {
+        method: "PATCH",
+        body: JSON.stringify(chapter)
+      });
+    } catch (error) {
+      showError("Non riesco a salvare il capitolo nel database.");
+    }
+  }, 300));
 }
 
 function updateSelectedCase(field, value) {
@@ -102,9 +134,9 @@ function updateSelectedCase(field, value) {
   }
 
   caseFile[field] = value;
-  saveCases();
   renderCaseList();
   renderHeader(caseFile);
+  scheduleCaseSave(caseFile);
 }
 
 function updateChapter(chapterId, field, value) {
@@ -115,18 +147,22 @@ function updateChapter(chapterId, field, value) {
   }
 
   chapter[field] = value;
-  saveCases();
+  scheduleChapterSave(chapter);
 }
 
-function removeChapter(chapterId) {
+async function removeChapter(chapterId) {
   const caseFile = getSelectedCase();
   if (!caseFile) {
     return;
   }
 
-  caseFile.chapters = caseFile.chapters.filter((chapter) => chapter.id !== chapterId);
-  saveCases();
-  render();
+  try {
+    await requestJson(`/api/chapters/${encodeURIComponent(chapterId)}`, { method: "DELETE" });
+    caseFile.chapters = caseFile.chapters.filter((chapter) => chapter.id !== chapterId);
+    render();
+  } catch (error) {
+    showError("Non riesco a rimuovere il capitolo dal database.");
+  }
 }
 
 function renderCaseList() {
@@ -225,6 +261,11 @@ function render() {
   renderEditor(caseFile);
 }
 
+function showError(message) {
+  console.error(message);
+  window.alert(message);
+}
+
 function escapeHtml(value) {
   return String(value)
     .replaceAll("&", "&amp;")
@@ -248,4 +289,6 @@ statusInput.addEventListener("change", (event) => updateSelectedCase("status", e
 leadInput.addEventListener("input", (event) => updateSelectedCase("lead", event.target.value));
 summaryInput.addEventListener("input", (event) => updateSelectedCase("summary", event.target.value));
 
-render();
+loadCases().catch(() => {
+  showError("Non riesco a caricare i fascicoli dal database.");
+});
