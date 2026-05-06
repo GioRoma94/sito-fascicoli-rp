@@ -2,9 +2,16 @@ let cases = [];
 let selectedCaseId = null;
 const saveTimers = new Map();
 
+const loginScreen = document.querySelector("#loginScreen");
+const appShell = document.querySelector("#appShell");
+const loginForm = document.querySelector("#loginForm");
+const loginError = document.querySelector("#loginError");
+const usernameInput = document.querySelector("#usernameInput");
+const passwordInput = document.querySelector("#passwordInput");
 const caseList = document.querySelector("#caseList");
 const caseSearch = document.querySelector("#caseSearch");
 const newCaseBtn = document.querySelector("#newCaseBtn");
+const logoutBtn = document.querySelector("#logoutBtn");
 const caseEditor = document.querySelector("#caseEditor");
 const emptyState = document.querySelector("#emptyState");
 const caseTitle = document.querySelector("#caseTitle");
@@ -25,6 +32,10 @@ async function requestJson(url, options = {}) {
   });
 
   if (!response.ok) {
+    if (response.status === 401 && !url.includes("/api/auth/")) {
+      showLogin();
+    }
+
     throw new Error(`Request failed with status ${response.status}`);
   }
 
@@ -33,6 +44,63 @@ async function requestJson(url, options = {}) {
   }
 
   return response.json();
+}
+
+async function checkSession() {
+  const session = await requestJson("/api/auth/me");
+  if (session.authenticated) {
+    showApp();
+    await loadCases();
+    return;
+  }
+
+  showLogin();
+}
+
+async function login(event) {
+  event.preventDefault();
+  loginError.hidden = true;
+
+  try {
+    await requestJson("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({
+        username: usernameInput.value,
+        password: passwordInput.value
+      })
+    });
+
+    passwordInput.value = "";
+    showApp();
+    await loadCases();
+  } catch (error) {
+    loginError.hidden = false;
+    passwordInput.select();
+  }
+}
+
+async function logout() {
+  try {
+    await requestJson("/api/auth/logout", { method: "POST" });
+  } finally {
+    saveTimers.forEach((timer) => clearTimeout(timer));
+    saveTimers.clear();
+    cases = [];
+    selectedCaseId = null;
+    render();
+    showLogin();
+  }
+}
+
+function showLogin() {
+  loginScreen.hidden = false;
+  appShell.hidden = true;
+  usernameInput.focus();
+}
+
+function showApp() {
+  loginScreen.hidden = true;
+  appShell.hidden = false;
 }
 
 async function loadCases() {
@@ -281,6 +349,8 @@ function escapeAttribute(value) {
 
 newCaseBtn.addEventListener("click", createCase);
 newChapterBtn.addEventListener("click", createChapter);
+loginForm.addEventListener("submit", login);
+logoutBtn.addEventListener("click", logout);
 caseSearch.addEventListener("input", renderCaseList);
 
 titleInput.addEventListener("input", (event) => updateSelectedCase("title", event.target.value));
@@ -289,6 +359,6 @@ statusInput.addEventListener("change", (event) => updateSelectedCase("status", e
 leadInput.addEventListener("input", (event) => updateSelectedCase("lead", event.target.value));
 summaryInput.addEventListener("input", (event) => updateSelectedCase("summary", event.target.value));
 
-loadCases().catch(() => {
+checkSession().catch(() => {
   showError("Non riesco a caricare i fascicoli dal database.");
 });

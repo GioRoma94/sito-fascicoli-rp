@@ -10,13 +10,35 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <div class="app-shell">
+    <section class="login-screen" id="loginScreen">
+      <div class="login-panel">
+        <div class="login-seal">CID</div>
+        <p class="eyebrow">Federal Investigative Access</p>
+        <h1>Case Archive</h1>
+        <p class="login-copy">Accesso riservato agli operatori autorizzati.</p>
+
+        <form class="login-form" id="loginForm">
+          <div class="field">
+            <label for="usernameInput">User ID</label>
+            <input id="usernameInput" name="username" type="text" autocomplete="username" required />
+          </div>
+          <div class="field">
+            <label for="passwordInput">Password</label>
+            <input id="passwordInput" name="password" type="password" autocomplete="current-password" required />
+          </div>
+          <p class="login-error" id="loginError" hidden>Credenziali non valide.</p>
+          <button class="primary-action" type="submit">Accedi al database</button>
+        </form>
+      </div>
+    </section>
+
+    <div class="app-shell" id="appShell" hidden>
       <aside class="sidebar">
         <div class="seal">
           <div class="seal-ring">INV</div>
           <div>
-            <p class="eyebrow">United States Police Department</p>
-            <h1>Case Archive</h1>
+            <p class="eyebrow">Criminal Investigation Division</p>
+            <h1>Federal Case Archive</h1>
           </div>
         </div>
 
@@ -28,6 +50,8 @@
         </div>
 
         <nav class="case-list" id="caseList" aria-label="Lista fascicoli"></nav>
+
+        <button class="logout-action" id="logoutBtn" type="button">Disconnetti</button>
       </aside>
 
       <main class="workspace">

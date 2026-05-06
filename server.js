@@ -1,10 +1,15 @@
 const express = require("express");
 const path = require("path");
+const crypto = require("crypto");
 const { Pool } = require("pg");
 
 const app = express();
 const port = process.env.PORT || 3000;
 const databaseUrl = process.env.DATABASE_URL;
+const authUser = process.env.AUTH_USER || "admin";
+const authPassword = process.env.AUTH_PASSWORD || "admin";
+const authSecret = process.env.AUTH_SECRET || "development-secret-change-me";
+const sessionMaxAgeMs = 1000 * 60 * 60 * 8;
 const pool = databaseUrl
   ? new Pool({
       connectionString: databaseUrl,
@@ -14,6 +19,93 @@ const pool = databaseUrl
 
 app.use(express.json({ limit: "1mb" }));
 app.use(express.static(path.join(__dirname, "public")));
+
+function parseCookies(header = "") {
+  return Object.fromEntries(
+    header
+      .split(";")
+      .map((cookie) => cookie.trim().split("="))
+      .filter(([key, value]) => key && value)
+      .map(([key, value]) => [key, decodeURIComponent(value)])
+  );
+}
+
+function sign(value) {
+  return crypto.createHmac("sha256", authSecret).update(value).digest("base64url");
+}
+
+function createSessionToken(username) {
+  const expiresAt = Date.now() + sessionMaxAgeMs;
+  const payload = `${username}.${expiresAt}`;
+  return `${payload}.${sign(payload)}`;
+}
+
+function verifySessionToken(token) {
+  if (!token) {
+    return null;
+  }
+
+  const parts = token.split(".");
+  if (parts.length !== 3) {
+    return null;
+  }
+
+  const [username, expiresAt, signature] = parts;
+  const payload = `${username}.${expiresAt}`;
+  const expectedSignature = sign(payload);
+  const expected = Buffer.from(expectedSignature);
+  const received = Buffer.from(signature);
+
+  if (expected.length !== received.length || !crypto.timingSafeEqual(expected, received)) {
+    return null;
+  }
+
+  if (Number(expiresAt) < Date.now()) {
+    return null;
+  }
+
+  return username;
+}
+
+function setSessionCookie(res, token) {
+  const secure = process.env.NODE_ENV === "production" || process.env.RENDER === "true";
+  res.cookie("case_session", token, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure,
+    maxAge: sessionMaxAgeMs
+  });
+}
+
+function clearSessionCookie(res) {
+  res.clearCookie("case_session", {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production" || process.env.RENDER === "true"
+  });
+}
+
+function getSessionUser(req) {
+  const cookies = parseCookies(req.headers.cookie);
+  return verifySessionToken(cookies.case_session);
+}
+
+function requireAuth(req, res, next) {
+  const username = getSessionUser(req);
+  if (!username) {
+    res.status(401).json({ error: "Authentication required." });
+    return;
+  }
+
+  req.user = { username };
+  next();
+}
+
+function safeCompare(value, expectedValue) {
+  const received = Buffer.from(String(value));
+  const expected = Buffer.from(String(expectedValue));
+  return received.length === expected.length && crypto.timingSafeEqual(received, expected);
+}
 
 async function initDatabase() {
   if (!pool) {
@@ -96,6 +188,31 @@ function validateChapterPayload(body) {
     people: String(body.people || "")
   };
 }
+
+app.get("/api/auth/me", (req, res) => {
+  const username = getSessionUser(req);
+  res.json({ authenticated: Boolean(username), username });
+});
+
+app.post("/api/auth/login", (req, res) => {
+  const username = String(req.body.username || "");
+  const password = String(req.body.password || "");
+
+  if (!safeCompare(username, authUser) || !safeCompare(password, authPassword)) {
+    res.status(401).json({ error: "Invalid credentials." });
+    return;
+  }
+
+  setSessionCookie(res, createSessionToken(username));
+  res.json({ authenticated: true, username });
+});
+
+app.post("/api/auth/logout", (req, res) => {
+  clearSessionCookie(res);
+  res.status(204).end();
+});
+
+app.use("/api", requireAuth);
 
 app.get("/api/cases", async (req, res) => {
   try {
