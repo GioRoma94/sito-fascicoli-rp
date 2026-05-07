@@ -64,6 +64,12 @@
 
         <button class="primary-action" id="newCaseBtn" type="button">+ Nuovo fascicolo</button>
 
+        <div class="main-tabs" aria-label="Sezioni archivio">
+          <button class="main-tab active" type="button" data-view="cases">Fascicoli</button>
+          <button class="main-tab" type="button" data-view="people">Persone</button>
+          <button class="main-tab" type="button" data-view="terminal">API AI</button>
+        </div>
+
         <div class="case-search">
           <label for="caseSearch">Ricerca fascicoli</label>
           <input id="caseSearch" type="search" placeholder="Numero, titolo, sospetto..." />
@@ -130,6 +136,38 @@
           </div>
 
           <div class="chapters" id="chapters"></div>
+        </section>
+
+        <section class="people-panel" id="peoplePanel" hidden>
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Registry</p>
+              <h3>Persone registrate nei fascicoli</h3>
+            </div>
+            <button class="secondary-action" id="newPersonBtn" type="button">+ Nuova persona</button>
+          </div>
+
+          <div class="people-grid" id="peopleGrid"></div>
+        </section>
+
+        <section class="ai-panel" id="aiPanel" hidden>
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Question API</p>
+              <h3>Terminale domande fascicolo</h3>
+            </div>
+            <select id="aiCaseSelect" aria-label="Fascicolo per terminale AI"></select>
+          </div>
+
+          <div class="ai-terminal">
+            <div class="terminal-output" id="aiOutput" aria-live="polite"></div>
+            <form class="ai-command" id="aiForm">
+              <span>PS&gt;</span>
+              <input id="aiQuestionInput" type="text" placeholder="Scrivi una domanda sul fascicolo selezionato..." />
+              <button class="secondary-action" type="submit">Invia</button>
+            </form>
+            <div class="suggestion-row" id="questionSuggestions"></div>
+          </div>
         </section>
 
         <section class="empty-state" id="emptyState">

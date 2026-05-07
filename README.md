@@ -1,12 +1,13 @@
 # Sito Fascicoli Investigativi RP
 
-Base Node/Express pronta per Render. Il sito permette di creare fascicoli, modificarne i dati principali e aggiungere capitoli con narrativa e persone coinvolte.
+Base Node/Express pronta per Render. Il sito permette di creare fascicoli, modificarne i dati principali, aggiungere/modificare/eliminare capitoli, gestire persone collegate ai fascicoli e usare un terminale predisposto per future domande AI sui fascicoli.
 
 ## Struttura progetto
 
 ```text
 frontend/   schermate, stile, JavaScript browser e immagini
-server.js   backend Express, login, API e PostgreSQL
+src/        moduli backend Express, database, auth, routes e integrazione Claude
+server.js   avvio server e inizializzazione database
 ```
 
 ## Avvio locale
@@ -30,7 +31,10 @@ Poi apri `http://localhost:3000`.
    - `AUTH_USER`: username di accesso
    - `AUTH_PASSWORD`: password di accesso
    - `AUTH_SECRET`: una stringa lunga e casuale per firmare la sessione
-6. Usa questi comandi:
+6. Per attivare il terminale AI con Claude, aggiungi:
+   - `ANTHROPIC_API_KEY`: API key generata dalla Claude/Anthropic Console
+   - `ANTHROPIC_MODEL`: modello Claude opzionale, default `claude-sonnet-4-5`
+7. Usa questi comandi:
    - Build Command: `npm install`
    - Start Command: `npm start`
 
@@ -39,8 +43,19 @@ Il file `render.yaml` contiene gia la configurazione base.
 ## Nota sui dati
 
 I fascicoli vengono salvati in PostgreSQL tramite la variabile `DATABASE_URL`.
-All'avvio il server crea automaticamente le tabelle `cases` e `chapters` se non esistono.
+All'avvio il server crea automaticamente le tabelle `cases`, `chapters` e `people` se non esistono.
 Se `DATABASE_URL` non e configurata, il server mostra solo dati demo in memoria per sviluppo locale.
+
+## Claude API
+
+Il terminale AI usa l'endpoint backend `/api/ai/questions` e legge la chiave da `ANTHROPIC_API_KEY`. Non inserire mai la chiave nel frontend o nel repository.
+
+Avvio locale PowerShell:
+
+```powershell
+$env:ANTHROPIC_API_KEY="la-tua-chiave"
+npm start
+```
 
 ## Utenti e password
 
