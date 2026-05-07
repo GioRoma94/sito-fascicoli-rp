@@ -1,6 +1,6 @@
 const { pool } = require("./db");
 const { developmentCases, developmentPeople } = require("./demoData");
-const { normalizePerson } = require("./payloads");
+const { formatChapterPeople, normalizeChapter, normalizePerson } = require("./payloads");
 
 async function getCaseContext(caseId) {
   if (!pool) {
@@ -51,10 +51,7 @@ async function getCaseContext(caseId) {
     lead: caseFile.lead,
     summary: caseFile.summary,
     chapters: chaptersResult.rows.map((row) => ({
-      id: row.id,
-      title: row.title,
-      narrative: row.narrative,
-      people: row.people
+      ...normalizeChapter(row)
     })),
     linkedPeople: peopleResult.rows.map(normalizePerson)
   };
@@ -65,7 +62,7 @@ function formatCaseContext(caseFile) {
     ? caseFile.chapters
         .map(
           (chapter, index) =>
-            `${index + 1}. ${chapter.title}\nNarrativa: ${chapter.narrative || "N/D"}\nPersone citate: ${chapter.people || "N/D"}`
+            `${index + 1}. ${chapter.title}\nNarrativa: ${chapter.narrative || "N/D"}\nPersone citate: ${formatChapterPeople(chapter.involvedPeople || chapter.people) || "N/D"}`
         )
         .join("\n\n")
     : "Nessun capitolo registrato.";

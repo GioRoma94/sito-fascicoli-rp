@@ -812,6 +812,64 @@ h1 {
   padding-left: 14px;
 }
 
+.people-role-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.role-chip {
+  min-height: 32px;
+  border: 1px solid rgba(228, 207, 145, 0.28);
+  border-radius: 999px;
+  padding: 6px 10px;
+  color: var(--gold-soft);
+  font-family: "Roboto Mono", monospace;
+  font-size: 11px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.role-chip:hover {
+  background: rgba(199, 160, 74, 0.12);
+}
+
+.chapter-people-list {
+  display: grid;
+  gap: 10px;
+}
+
+.chapter-person-row {
+  display: grid;
+  grid-template-columns: minmax(170px, 0.7fr) minmax(160px, 0.9fr) minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.chapter-person-row select,
+.chapter-person-row input {
+  min-height: 42px;
+}
+
+.chapter-person-empty {
+  padding: 12px;
+  border: 1px dashed rgba(228, 207, 145, 0.28);
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.remove-entry {
+  min-height: 42px;
+  border: 1px solid rgba(255, 105, 120, 0.35);
+  border-radius: 6px;
+  padding: 0 10px;
+  color: #ff9da7;
+  font-weight: 700;
+  background: rgba(142, 31, 45, 0.12);
+}
+
 .people-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
@@ -989,7 +1047,8 @@ h1 {
 
   .people-toolbar,
   .case-form,
-  .chapter {
+  .chapter,
+  .chapter-person-row {
     grid-template-columns: 1fr;
   }
 }

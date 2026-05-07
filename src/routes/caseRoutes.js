@@ -3,6 +3,7 @@ const { pool } = require("../db");
 const { developmentCases } = require("../demoData");
 const {
   normalizeCase,
+  normalizeChapter,
   validateCasePayload,
   validateChapterPayload
 } = require("../payloads");
@@ -115,8 +116,9 @@ router.post("/cases/:caseId/chapters", async (req, res) => {
         return;
       }
 
-      caseFile.chapters.push(chapter);
-      res.status(201).json(chapter);
+      const normalizedChapter = normalizeChapter(chapter);
+      caseFile.chapters.push(normalizedChapter);
+      res.status(201).json(normalizedChapter);
       return;
     }
 
@@ -128,7 +130,7 @@ router.post("/cases/:caseId/chapters", async (req, res) => {
       [chapter.id, req.params.caseId, chapter.title, chapter.narrative, chapter.people]
     );
 
-    res.status(201).json(chapter);
+    res.status(201).json(normalizeChapter(chapter));
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Unable to create chapter." });
@@ -149,7 +151,7 @@ router.patch("/chapters/:id", async (req, res) => {
       }
 
       Object.assign(existingChapter, chapter);
-      res.json(chapter);
+      res.json(normalizeChapter(chapter));
       return;
     }
 
@@ -162,7 +164,7 @@ router.patch("/chapters/:id", async (req, res) => {
       [chapter.id, chapter.title, chapter.narrative, chapter.people]
     );
 
-    res.json(chapter);
+    res.json(normalizeChapter(chapter));
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Unable to update chapter." });

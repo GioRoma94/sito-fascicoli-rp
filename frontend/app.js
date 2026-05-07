@@ -6,6 +6,12 @@ let aiConfigured = null;
 let saveState = "idle";
 let toastTimer = null;
 const saveTimers = new Map();
+const chapterRoleOptions = [
+  "Vittima",
+  "Complice",
+  "Persona informata sui fatti",
+  "Esecutore"
+];
 const viewLabels = {
   cases: "Vista fascicoli e narrativa operativa.",
   people: "Anagrafica investigativa e collegamenti ai fascicoli.",
@@ -246,7 +252,8 @@ async function createChapter() {
     id: crypto.randomUUID(),
     title: `Capitolo ${caseFile.chapters.length + 1}`,
     narrative: "",
-    people: ""
+    people: "",
+    involvedPeople: []
   };
 
   try {
@@ -385,6 +392,52 @@ function updateChapter(chapterId, field, value) {
   }
 
   chapter[field] = value;
+  scheduleChapterSave(chapter);
+}
+
+function createInvolvedPerson(role = "Persona informata sui fatti") {
+  return {
+    id: crypto.randomUUID(),
+    role,
+    name: "",
+    note: ""
+  };
+}
+
+function addChapterPerson(chapterId, role = "Persona informata sui fatti") {
+  const caseFile = getSelectedCase();
+  const chapter = caseFile?.chapters.find((item) => item.id === chapterId);
+  if (!chapter) {
+    return;
+  }
+
+  chapter.involvedPeople = [...(chapter.involvedPeople || []), createInvolvedPerson(role)];
+  renderEditor(caseFile);
+  document.querySelector(`[data-person-entry-name="${chapter.id}:${chapter.involvedPeople.at(-1).id}"]`)?.focus();
+  scheduleChapterSave(chapter);
+}
+
+function updateChapterPerson(chapterId, personId, field, value) {
+  const caseFile = getSelectedCase();
+  const chapter = caseFile?.chapters.find((item) => item.id === chapterId);
+  const person = chapter?.involvedPeople?.find((item) => item.id === personId);
+  if (!chapter || !person) {
+    return;
+  }
+
+  person[field] = value;
+  scheduleChapterSave(chapter);
+}
+
+function removeChapterPerson(chapterId, personId) {
+  const caseFile = getSelectedCase();
+  const chapter = caseFile?.chapters.find((item) => item.id === chapterId);
+  if (!chapter) {
+    return;
+  }
+
+  chapter.involvedPeople = (chapter.involvedPeople || []).filter((item) => item.id !== personId);
+  renderEditor(caseFile);
   scheduleChapterSave(chapter);
 }
 
@@ -535,6 +588,7 @@ function renderEditor(caseFile) {
   }
 
   caseFile.chapters.forEach((chapter, index) => {
+    const involvedPeople = chapter.involvedPeople || [];
     const article = document.createElement("article");
     article.className = "chapter";
     article.innerHTML = `
@@ -552,7 +606,39 @@ function renderEditor(caseFile) {
       </div>
       <div class="field people-box">
         <label>Persone coinvolte</label>
-        <textarea rows="8" placeholder="Nome - ruolo o nota" data-chapter-field="people" data-chapter-id="${chapter.id}">${escapeHtml(chapter.people)}</textarea>
+        <div class="people-role-tools">
+          ${chapterRoleOptions
+            .map(
+              (role) =>
+                `<button class="role-chip" type="button" data-role-template="${chapter.id}" data-role-value="${escapeAttribute(role)}">${escapeHtml(role)}</button>`
+            )
+            .join("")}
+        </div>
+        <div class="chapter-people-list">
+          ${
+            involvedPeople.length
+              ? involvedPeople
+                  .map(
+                    (person) => `
+                      <div class="chapter-person-row">
+                        <select data-person-entry-field="role" data-chapter-person="${chapter.id}:${person.id}">
+                          ${chapterRoleOptions
+                            .map(
+                              (role) =>
+                                `<option value="${escapeAttribute(role)}"${role === person.role ? " selected" : ""}>${escapeHtml(role)}</option>`
+                            )
+                            .join("")}
+                        </select>
+                        <input type="text" placeholder="Nome" value="${escapeAttribute(person.name)}" data-person-entry-name="${chapter.id}:${person.id}" data-person-entry-field="name" data-chapter-person="${chapter.id}:${person.id}" />
+                        <input type="text" placeholder="Nota o dettaglio" value="${escapeAttribute(person.note)}" data-person-entry-field="note" data-chapter-person="${chapter.id}:${person.id}" />
+                        <button class="remove-entry" type="button" data-remove-entry="${chapter.id}:${person.id}">Rimuovi</button>
+                      </div>
+                    `
+                  )
+                  .join("")
+              : '<div class="chapter-person-empty">Nessuna persona strutturata inserita in questo capitolo.</div>'
+          }
+        </div>
       </div>
     `;
 
@@ -565,6 +651,30 @@ function renderEditor(caseFile) {
 
     article.querySelector("[data-remove-chapter]").addEventListener("click", () => {
       removeChapter(chapter.id);
+    });
+
+    article.querySelectorAll("[data-role-template]").forEach((button) => {
+      button.addEventListener("click", () => {
+        addChapterPerson(chapter.id, button.dataset.roleValue);
+      });
+    });
+
+    article.querySelectorAll("[data-chapter-person]").forEach((input) => {
+      input.addEventListener("input", (event) => {
+        const [currentChapterId, personId] = event.target.dataset.chapterPerson.split(":");
+        updateChapterPerson(currentChapterId, personId, event.target.dataset.personEntryField, event.target.value);
+      });
+      input.addEventListener("change", (event) => {
+        const [currentChapterId, personId] = event.target.dataset.chapterPerson.split(":");
+        updateChapterPerson(currentChapterId, personId, event.target.dataset.personEntryField, event.target.value);
+      });
+    });
+
+    article.querySelectorAll("[data-remove-entry]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const [currentChapterId, personId] = button.dataset.removeEntry.split(":");
+        removeChapterPerson(currentChapterId, personId);
+      });
     });
 
     chapters.append(article);
