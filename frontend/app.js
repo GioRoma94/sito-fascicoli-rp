@@ -2,7 +2,15 @@ let cases = [];
 let people = [];
 let selectedCaseId = null;
 let activeView = "cases";
+let aiConfigured = null;
+let saveState = "idle";
+let toastTimer = null;
 const saveTimers = new Map();
+const viewLabels = {
+  cases: "Vista fascicoli e narrativa operativa.",
+  people: "Anagrafica investigativa e collegamenti ai fascicoli.",
+  terminal: "Domande contestuali e suggerimenti AI per RP."
+};
 
 const loginScreen = document.querySelector("#loginScreen");
 const appShell = document.querySelector("#appShell");
@@ -20,6 +28,8 @@ const emptyState = document.querySelector("#emptyState");
 const caseTitle = document.querySelector("#caseTitle");
 const caseStatus = document.querySelector("#caseStatus");
 const caseNumber = document.querySelector("#caseNumber");
+const saveIndicator = document.querySelector("#saveIndicator");
+const viewSubtitle = document.querySelector("#viewSubtitle");
 const titleInput = document.querySelector("#titleInput");
 const numberInput = document.querySelector("#numberInput");
 const statusInput = document.querySelector("#statusInput");
@@ -27,16 +37,26 @@ const leadInput = document.querySelector("#leadInput");
 const summaryInput = document.querySelector("#summaryInput");
 const newChapterBtn = document.querySelector("#newChapterBtn");
 const chapters = document.querySelector("#chapters");
-const mainTabs = document.querySelectorAll("[data-view]");
+const sectionLinks = document.querySelectorAll("[data-view]");
+const caseCountBadge = document.querySelector("#caseCountBadge");
+const peopleCountBadge = document.querySelector("#peopleCountBadge");
+const aiStatusBadge = document.querySelector("#aiStatusBadge");
+const quickCases = document.querySelector("#quickCases");
+const quickPeople = document.querySelector("#quickPeople");
+const quickLastCase = document.querySelector("#quickLastCase");
+const quickAiStatus = document.querySelector("#quickAiStatus");
 const peoplePanel = document.querySelector("#peoplePanel");
 const peopleGrid = document.querySelector("#peopleGrid");
 const newPersonBtn = document.querySelector("#newPersonBtn");
+const peopleSearch = document.querySelector("#peopleSearch");
+const peopleCaseFilter = document.querySelector("#peopleCaseFilter");
 const aiPanel = document.querySelector("#aiPanel");
 const aiCaseSelect = document.querySelector("#aiCaseSelect");
 const aiOutput = document.querySelector("#aiOutput");
 const aiForm = document.querySelector("#aiForm");
 const aiQuestionInput = document.querySelector("#aiQuestionInput");
 const questionSuggestions = document.querySelector("#questionSuggestions");
+const toastStack = document.querySelector("#toastStack");
 const bootLines = [
   "Import-Module FederalCaseVault",
   "Mount-IntelDrive -Name FBI_FIELD_ARCHIVE",
@@ -61,7 +81,17 @@ async function requestJson(url, options = {}) {
       showLogin();
     }
 
-    throw new Error(`Request failed with status ${response.status}`);
+    let message = `Request failed with status ${response.status}`;
+    try {
+      const payload = await response.json();
+      message = payload.message || payload.error || message;
+    } catch (error) {
+      // Ignore parsing errors and keep fallback message.
+    }
+
+    const requestError = new Error(message);
+    requestError.status = response.status;
+    throw requestError;
   }
 
   if (response.status === 204) {
@@ -75,7 +105,7 @@ async function checkSession() {
   const session = await requestJson("/api/auth/me");
   if (session.authenticated) {
     showApp();
-    await loadCases();
+    await loadData();
     return;
   }
 
@@ -97,7 +127,7 @@ async function login(event) {
 
     passwordInput.value = "";
     showApp();
-    await loadCases();
+    await loadData();
   } catch (error) {
     loginError.hidden = false;
     passwordInput.select();
@@ -114,6 +144,8 @@ async function logout() {
     people = [];
     selectedCaseId = null;
     activeView = "cases";
+    aiConfigured = null;
+    setSaveState("idle");
     render();
     showLogin();
   }
@@ -152,11 +184,25 @@ function clearBootLogTimers() {
   bootTimers = [];
 }
 
-async function loadCases() {
-  cases = await requestJson("/api/cases");
-  people = await requestJson("/api/people");
-  selectedCaseId = cases[0]?.id || null;
+async function loadData() {
+  const [loadedCases, loadedPeople] = await Promise.all([
+    requestJson("/api/cases"),
+    requestJson("/api/people")
+  ]);
+  cases = loadedCases;
+  people = loadedPeople;
+  selectedCaseId = cases.find((item) => item.id === selectedCaseId)?.id || cases[0]?.id || null;
+  await refreshAiStatus();
   render();
+}
+
+async function refreshAiStatus() {
+  try {
+    const response = await requestJson("/api/ai/status");
+    aiConfigured = Boolean(response.configured);
+  } catch (error) {
+    aiConfigured = false;
+  }
 }
 
 function getSelectedCase() {
@@ -181,8 +227,10 @@ async function createCase() {
 
     cases.unshift(createdCase);
     selectedCaseId = createdCase.id;
+    setActiveView("cases");
     render();
     titleInput.focus();
+    showToast("Nuovo fascicolo creato.");
   } catch (error) {
     showError("Non riesco a creare il fascicolo nel database.");
   }
@@ -210,6 +258,7 @@ async function createChapter() {
     caseFile.chapters.push(createdChapter);
     render();
     document.querySelector(`[data-chapter-title="${createdChapter.id}"]`)?.focus();
+    showToast("Capitolo aggiunto.");
   } catch (error) {
     showError("Non riesco a creare il capitolo nel database.");
   }
@@ -235,54 +284,85 @@ async function createPerson() {
     activeView = "people";
     render();
     document.querySelector(`[data-person-name="${createdPerson.id}"]`)?.focus();
+    showToast("Persona registrata.");
   } catch (error) {
     showError("Non riesco a creare la persona nel database.");
   }
 }
 
+function setSaveState(state) {
+  saveState = state;
+  const labels = {
+    idle: "In attesa",
+    saving: "Salvataggio...",
+    saved: "Salvato",
+    error: "Errore salvataggio"
+  };
+  saveIndicator.textContent = labels[state] || labels.idle;
+  saveIndicator.dataset.state = state;
+}
+
+function markSavedSoon() {
+  setSaveState("saved");
+  window.setTimeout(() => {
+    if (saveState === "saved") {
+      setSaveState("idle");
+    }
+  }, 1400);
+}
+
 function scheduleCaseSave(caseFile) {
   const timerKey = `case:${caseFile.id}`;
   clearTimeout(saveTimers.get(timerKey));
+  setSaveState("saving");
   saveTimers.set(timerKey, setTimeout(async () => {
     try {
       await requestJson(`/api/cases/${encodeURIComponent(caseFile.id)}`, {
         method: "PATCH",
         body: JSON.stringify(caseFile)
       });
+      markSavedSoon();
     } catch (error) {
+      setSaveState("error");
       showError("Non riesco a salvare il fascicolo nel database.");
     }
-  }, 300));
+  }, 350));
 }
 
 function scheduleChapterSave(chapter) {
   const timerKey = `chapter:${chapter.id}`;
   clearTimeout(saveTimers.get(timerKey));
+  setSaveState("saving");
   saveTimers.set(timerKey, setTimeout(async () => {
     try {
       await requestJson(`/api/chapters/${encodeURIComponent(chapter.id)}`, {
         method: "PATCH",
         body: JSON.stringify(chapter)
       });
+      markSavedSoon();
     } catch (error) {
+      setSaveState("error");
       showError("Non riesco a salvare il capitolo nel database.");
     }
-  }, 300));
+  }, 350));
 }
 
 function schedulePersonSave(person) {
   const timerKey = `person:${person.id}`;
   clearTimeout(saveTimers.get(timerKey));
+  setSaveState("saving");
   saveTimers.set(timerKey, setTimeout(async () => {
     try {
       await requestJson(`/api/people/${encodeURIComponent(person.id)}`, {
         method: "PATCH",
         body: JSON.stringify(person)
       });
+      markSavedSoon();
     } catch (error) {
+      setSaveState("error");
       showError("Non riesco a salvare la persona nel database.");
     }
-  }, 300));
+  }, 350));
 }
 
 function updateSelectedCase(field, value) {
@@ -310,7 +390,7 @@ function updateChapter(chapterId, field, value) {
 
 async function removeChapter(chapterId) {
   const caseFile = getSelectedCase();
-  if (!caseFile) {
+  if (!caseFile || !window.confirm("Eliminare questo capitolo?")) {
     return;
   }
 
@@ -318,6 +398,7 @@ async function removeChapter(chapterId) {
     await requestJson(`/api/chapters/${encodeURIComponent(chapterId)}`, { method: "DELETE" });
     caseFile.chapters = caseFile.chapters.filter((chapter) => chapter.id !== chapterId);
     render();
+    showToast("Capitolo eliminato.");
   } catch (error) {
     showError("Non riesco a rimuovere il capitolo dal database.");
   }
@@ -332,15 +413,20 @@ function updatePerson(personId, field, value) {
   person[field] = value;
   schedulePersonSave(person);
   if (field === "caseId") {
-    renderCaseList();
+    render();
   }
 }
 
 async function removePerson(personId) {
+  if (!window.confirm("Eliminare questa persona dall'anagrafica?")) {
+    return;
+  }
+
   try {
     await requestJson(`/api/people/${encodeURIComponent(personId)}`, { method: "DELETE" });
     people = people.filter((person) => person.id !== personId);
-    renderPeople();
+    render();
+    showToast("Persona eliminata.");
   } catch (error) {
     showError("Non riesco a rimuovere la persona dal database.");
   }
@@ -349,6 +435,31 @@ async function removePerson(personId) {
 function setActiveView(view) {
   activeView = view;
   render();
+}
+
+function getStatusTone(status) {
+  if (status === "CHIUSO") {
+    return "closed";
+  }
+  if (status === "MANDATO RICHIESTO") {
+    return "alert";
+  }
+  if (status === "SOTTO OSSERVAZIONE") {
+    return "watch";
+  }
+  return "open";
+}
+
+function renderSidebarStats() {
+  caseCountBadge.textContent = String(cases.length);
+  peopleCountBadge.textContent = String(people.length);
+  aiStatusBadge.textContent = aiConfigured ? "ON" : "OFF";
+  aiStatusBadge.dataset.mode = aiConfigured ? "online" : "offline";
+  quickCases.textContent = String(cases.length);
+  quickPeople.textContent = String(people.length);
+  quickLastCase.textContent = cases[0]?.number || "-";
+  quickAiStatus.textContent = aiConfigured ? "Configurata" : "Non configurata";
+  quickAiStatus.dataset.mode = aiConfigured ? "online" : "offline";
 }
 
 function renderCaseList() {
@@ -360,12 +471,27 @@ function renderCaseList() {
 
   caseList.innerHTML = "";
 
+  if (visibleCases.length === 0) {
+    caseList.innerHTML = `<div class="sidebar-empty">Nessun fascicolo corrisponde alla ricerca.</div>`;
+    return;
+  }
+
   visibleCases.forEach((caseFile) => {
     const button = document.createElement("button");
+    const linkedPeople = people.filter((person) => person.caseId === caseFile.id).length;
     button.type = "button";
     button.className = `case-tab${caseFile.id === selectedCaseId ? " active" : ""}`;
-    const linkedPeople = people.filter((person) => person.caseId === caseFile.id).length;
-    button.innerHTML = `<strong>${escapeHtml(caseFile.title)}</strong><span>${escapeHtml(caseFile.number)} | ${escapeHtml(caseFile.status)} | ${linkedPeople} persone</span>`;
+    button.innerHTML = `
+      <div class="case-tab-head">
+        <strong>${escapeHtml(caseFile.title)}</strong>
+        <span class="status-pill ${getStatusTone(caseFile.status)}">${escapeHtml(caseFile.status)}</span>
+      </div>
+      <span class="case-tab-meta">${escapeHtml(caseFile.number)}</span>
+      <span class="case-tab-grid">
+        <span>${caseFile.chapters.length} capitoli</span>
+        <span>${linkedPeople} persone</span>
+      </span>
+    `;
     button.addEventListener("click", () => {
       selectedCaseId = caseFile.id;
       render();
@@ -378,6 +504,7 @@ function renderHeader(caseFile) {
   caseTitle.textContent = caseFile?.title || "Seleziona un fascicolo";
   caseStatus.textContent = caseFile?.status || "ARCHIVE";
   caseNumber.textContent = caseFile?.number || "NO CASE";
+  viewSubtitle.textContent = viewLabels[activeView];
 }
 
 function renderEditor(caseFile) {
@@ -397,10 +524,13 @@ function renderEditor(caseFile) {
   chapters.innerHTML = "";
 
   if (caseFile.chapters.length === 0) {
-    const empty = document.createElement("div");
-    empty.className = "empty-state";
-    empty.innerHTML = "<p class=\"badge\">NO CHAPTERS</p><h2>Nessun capitolo</h2><p>Aggiungi un capitolo per registrare narrativa e persone coinvolte.</p>";
-    chapters.append(empty);
+    chapters.innerHTML = `
+      <div class="empty-state compact-empty">
+        <p class="badge">NO CHAPTERS</p>
+        <h2>Nessun capitolo</h2>
+        <p>Aggiungi un capitolo per registrare narrativa, persone e note operative.</p>
+      </div>
+    `;
     return;
   }
 
@@ -441,21 +571,56 @@ function renderEditor(caseFile) {
   });
 }
 
-function renderPeople() {
-  peopleGrid.innerHTML = "";
+function renderPeopleFilters() {
+  const currentValue = peopleCaseFilter.value;
+  const options = cases
+    .map(
+      (caseFile) =>
+        `<option value="${escapeAttribute(caseFile.id)}">${escapeHtml(caseFile.number)} - ${escapeHtml(caseFile.title)}</option>`
+    )
+    .join("");
+  peopleCaseFilter.innerHTML = `
+    <option value="">Tutti i fascicoli</option>
+    <option value="__unlinked__">Non collegati</option>
+    ${options}
+  `;
 
-  if (people.length === 0) {
+  if ([...peopleCaseFilter.options].some((option) => option.value === currentValue)) {
+    peopleCaseFilter.value = currentValue;
+  }
+}
+
+function getVisiblePeople() {
+  const query = peopleSearch.value.trim().toLowerCase();
+  const caseFilter = peopleCaseFilter.value;
+
+  return people.filter((person) => {
+    const matchesQuery = `${person.name} ${person.phone} ${person.bankAccount} ${person.birthDate}`.toLowerCase().includes(query);
+    const matchesCase =
+      !caseFilter ||
+      (caseFilter === "__unlinked__" ? !person.caseId : person.caseId === caseFilter);
+    return matchesQuery && matchesCase;
+  });
+}
+
+function renderPeople() {
+  renderPeopleFilters();
+  peopleGrid.innerHTML = "";
+  const visiblePeople = getVisiblePeople();
+
+  if (visiblePeople.length === 0) {
     peopleGrid.innerHTML = `
-      <div class="empty-state inline-empty">
+      <div class="empty-state inline-empty compact-empty">
         <p class="badge">NO PEOPLE</p>
-        <h2>Nessuna persona registrata</h2>
-        <p>Aggiungi una persona e collegala a un fascicolo.</p>
+        <h2>Nessun risultato</h2>
+        <p>Prova a cambiare filtro oppure registra una nuova persona.</p>
       </div>
     `;
     return;
   }
 
-  people.forEach((person) => {
+  visiblePeople.forEach((person) => {
+    const linkedCase = cases.find((caseFile) => caseFile.id === person.caseId);
     const article = document.createElement("article");
     article.className = "person-card";
     article.innerHTML = `
@@ -465,6 +630,10 @@ function renderPeople() {
           <input type="text" value="${escapeAttribute(person.name)}" data-person-name="${person.id}" data-person-field="name" />
         </div>
         <button class="remove-chapter" type="button" data-remove-person="${person.id}">Elimina</button>
+      </div>
+      <div class="person-tag-row">
+        <span class="status-pill ${linkedCase ? "open" : "closed"}">${linkedCase ? "Collegato" : "Non collegato"}</span>
+        <span class="person-link-case">${escapeHtml(linkedCase?.number || "Nessun fascicolo")}</span>
       </div>
       <div class="field">
         <label>Data di nascita</label>
@@ -482,7 +651,12 @@ function renderPeople() {
         <label>Fascicolo collegato</label>
         <select data-person-field="caseId" data-person-id="${person.id}">
           <option value="">Non collegato</option>
-          ${cases.map((caseFile) => `<option value="${escapeAttribute(caseFile.id)}"${caseFile.id === person.caseId ? " selected" : ""}>${escapeHtml(caseFile.number)} - ${escapeHtml(caseFile.title)}</option>`).join("")}
+          ${cases
+            .map(
+              (caseFile) =>
+                `<option value="${escapeAttribute(caseFile.id)}"${caseFile.id === person.caseId ? " selected" : ""}>${escapeHtml(caseFile.number)} - ${escapeHtml(caseFile.title)}</option>`
+            )
+            .join("")}
         </select>
       </div>
     `;
@@ -508,7 +682,10 @@ function renderPeople() {
 
 function renderAiTerminal() {
   aiCaseSelect.innerHTML = cases
-    .map((caseFile) => `<option value="${escapeAttribute(caseFile.id)}"${caseFile.id === selectedCaseId ? " selected" : ""}>${escapeHtml(caseFile.number)} - ${escapeHtml(caseFile.title)}</option>`)
+    .map(
+      (caseFile) =>
+        `<option value="${escapeAttribute(caseFile.id)}"${caseFile.id === selectedCaseId ? " selected" : ""}>${escapeHtml(caseFile.number)} - ${escapeHtml(caseFile.title)}</option>`
+    )
     .join("");
 
   const caseFile = getSelectedCase();
@@ -522,6 +699,7 @@ function renderAiTerminal() {
   if (!aiOutput.dataset.ready) {
     aiOutput.innerHTML = `
       <p><span>system</span> Terminale API predisposto.</p>
+      <p><span>status</span> ${aiConfigured ? "Claude risulta configurato." : "Claude non risulta configurato sul server."}</p>
       <p><span>case</span> Seleziona un fascicolo, invia una domanda o usa un suggerimento.</p>
     `;
     aiOutput.dataset.ready = "true";
@@ -560,15 +738,60 @@ async function submitAiQuestion(event) {
       method: "POST",
       body: JSON.stringify({ caseId, question })
     });
-    appendTerminalLine("claude", response.message || "Nessuna risposta ricevuta.");
+    appendStructuredAiResponse(response.message || "Nessuna risposta ricevuta.");
   } catch (error) {
-    appendTerminalLine("error", "Claude non e configurato o non e raggiungibile. Controlla ANTHROPIC_API_KEY sul server.");
+    appendTerminalLine("error", error.message || "Claude non e configurato o non e raggiungibile.");
   }
 
   if (caseFile) {
     selectedCaseId = caseFile.id;
     renderHeader(caseFile);
   }
+}
+
+function appendStructuredAiResponse(text) {
+  const sections = splitAiSections(text);
+  if (sections.length === 0) {
+    appendTerminalLine("claude", text);
+    return;
+  }
+
+  sections.forEach((section) => {
+    appendTerminalLine(section.label, section.body);
+  });
+}
+
+function splitAiSections(text) {
+  const normalized = String(text || "").trim();
+  if (!normalized) {
+    return [];
+  }
+
+  const lines = normalized.split(/\n+/);
+  const sections = [];
+  let current = { label: "claude", body: "" };
+
+  lines.forEach((line) => {
+    const match = line.match(/^([A-Za-zÀ-ÿ ]{3,30}):\s*(.*)$/);
+    if (match) {
+      if (current.body.trim()) {
+        sections.push({ ...current, body: current.body.trim() });
+      }
+      current = {
+        label: match[1].trim().toLowerCase(),
+        body: match[2].trim()
+      };
+      return;
+    }
+
+    current.body += `${current.body ? "\n" : ""}${line}`;
+  });
+
+  if (current.body.trim()) {
+    sections.push({ ...current, body: current.body.trim() });
+  }
+
+  return sections;
 }
 
 function appendTerminalLine(label, text) {
@@ -580,13 +803,14 @@ function appendTerminalLine(label, text) {
 
 function render() {
   const caseFile = getSelectedCase();
-  mainTabs.forEach((tab) => {
+  sectionLinks.forEach((tab) => {
     tab.classList.toggle("active", tab.dataset.view === activeView);
   });
   caseEditor.hidden = activeView !== "cases" || !caseFile;
   emptyState.hidden = activeView !== "cases" || Boolean(caseFile);
   peoplePanel.hidden = activeView !== "people";
   aiPanel.hidden = activeView !== "terminal";
+  renderSidebarStats();
   renderCaseList();
   renderHeader(caseFile);
   if (activeView === "cases") {
@@ -600,9 +824,22 @@ function render() {
   }
 }
 
+function showToast(message, type = "info") {
+  clearTimeout(toastTimer);
+  toastStack.innerHTML = "";
+  const toast = document.createElement("div");
+  toast.className = "toast";
+  toast.dataset.type = type;
+  toast.textContent = message;
+  toastStack.append(toast);
+  toastTimer = window.setTimeout(() => {
+    toast.remove();
+  }, 2400);
+}
+
 function showError(message) {
   console.error(message);
-  window.alert(message);
+  showToast(message, "error");
 }
 
 function escapeHtml(value) {
@@ -624,12 +861,14 @@ newPersonBtn.addEventListener("click", createPerson);
 loginForm.addEventListener("submit", login);
 logoutBtn.addEventListener("click", logout);
 caseSearch.addEventListener("input", renderCaseList);
+peopleSearch.addEventListener("input", renderPeople);
+peopleCaseFilter.addEventListener("change", renderPeople);
 aiForm.addEventListener("submit", submitAiQuestion);
 aiCaseSelect.addEventListener("change", (event) => {
   selectedCaseId = event.target.value;
   renderHeader(getSelectedCase());
 });
-mainTabs.forEach((tab) => {
+sectionLinks.forEach((tab) => {
   tab.addEventListener("click", () => setActiveView(tab.dataset.view));
 });
 

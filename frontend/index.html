@@ -64,11 +64,54 @@
 
         <button class="primary-action" id="newCaseBtn" type="button">+ Nuovo fascicolo</button>
 
-        <div class="main-tabs" aria-label="Sezioni archivio">
-          <button class="main-tab active" type="button" data-view="cases">Fascicoli</button>
-          <button class="main-tab" type="button" data-view="people">Persone</button>
-          <button class="main-tab" type="button" data-view="terminal">API AI</button>
-        </div>
+        <nav class="section-nav" aria-label="Sezioni archivio">
+          <button class="section-link active" type="button" data-view="cases">
+            <span class="section-icon">C</span>
+            <span class="section-copy">
+              <strong>Fascicoli</strong>
+              <small>Archivio operativo e capitoli</small>
+            </span>
+            <span class="section-meta" id="caseCountBadge">0</span>
+          </button>
+          <button class="section-link" type="button" data-view="people">
+            <span class="section-icon">P</span>
+            <span class="section-copy">
+              <strong>Persone</strong>
+              <small>Anagrafica, contatti, collegamenti</small>
+            </span>
+            <span class="section-meta" id="peopleCountBadge">0</span>
+          </button>
+          <button class="section-link" type="button" data-view="terminal">
+            <span class="section-icon">AI</span>
+            <span class="section-copy">
+              <strong>Terminale AI</strong>
+              <small>Domande fascicolo e spunti RP</small>
+            </span>
+            <span class="section-meta" id="aiStatusBadge">OFF</span>
+          </button>
+        </nav>
+
+        <section class="sidebar-panel">
+          <p class="panel-kicker">Quick desk</p>
+          <div class="quick-stats" id="quickStats">
+            <div>
+              <span>Fascicoli</span>
+              <strong id="quickCases">0</strong>
+            </div>
+            <div>
+              <span>Persone</span>
+              <strong id="quickPeople">0</strong>
+            </div>
+            <div>
+              <span>Ultimo fascicolo</span>
+              <strong id="quickLastCase">-</strong>
+            </div>
+            <div>
+              <span>Stato AI</span>
+              <strong id="quickAiStatus">Verifica...</strong>
+            </div>
+          </div>
+        </section>
 
         <div class="case-search">
           <label for="caseSearch">Ricerca fascicoli</label>
@@ -85,10 +128,12 @@
           <div>
             <p class="eyebrow">Detective&Bureau</p>
             <h2 id="caseTitle">Seleziona un fascicolo</h2>
+            <p class="topbar-subtitle" id="viewSubtitle">Vista fascicoli e narrativa operativa.</p>
           </div>
           <div class="status-strip">
             <span id="caseStatus">ARCHIVE</span>
             <span id="caseNumber">NO CASE</span>
+            <span id="saveIndicator">In attesa</span>
           </div>
         </header>
 
@@ -147,6 +192,20 @@
             <button class="secondary-action" id="newPersonBtn" type="button">+ Nuova persona</button>
           </div>
 
+          <div class="people-toolbar">
+            <div class="field">
+              <label for="peopleSearch">Ricerca persone</label>
+              <input id="peopleSearch" type="search" placeholder="Nome, telefono, conto..." />
+            </div>
+            <div class="field">
+              <label for="peopleCaseFilter">Filtro fascicolo</label>
+              <select id="peopleCaseFilter">
+                <option value="">Tutti i fascicoli</option>
+                <option value="__unlinked__">Non collegati</option>
+              </select>
+            </div>
+          </div>
+
           <div class="people-grid" id="peopleGrid"></div>
         </section>
 
@@ -177,6 +236,8 @@
         </section>
       </main>
     </div>
+
+    <div class="toast-stack" id="toastStack" aria-live="polite" aria-atomic="true"></div>
 
     <script src="app.js"></script>
   </body>

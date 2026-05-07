@@ -4,6 +4,13 @@ const { formatCaseContext, getCaseContext } = require("../caseContext");
 
 const router = express.Router();
 
+router.get("/ai/status", (req, res) => {
+  res.json({
+    configured: Boolean(anthropicApiKey),
+    model: anthropicModel
+  });
+});
+
 router.post("/ai/questions", async (req, res) => {
   try {
     if (!anthropicApiKey) {
